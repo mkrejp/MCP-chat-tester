@@ -289,7 +289,7 @@ details pre { white-space: pre-wrap; }
 dialog { border: 1px solid var(--line); padding: 0.6rem; max-width: 92vw; background: var(--paper); }
 dialog img { max-width: 88vw; max-height: 80vh; }
 
-.atlas-pin { background: transparent; border: 0; }
+.leaflet-marker-icon.atlas-pin { background: transparent; border: 0; }
 .atlas-pin span {
   display: grid;
   place-items: center;

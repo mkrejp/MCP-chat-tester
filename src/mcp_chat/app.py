@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from mcp_chat.auth import install_auth
 from mcp_chat.config import Settings, load_settings
 from mcp_chat.interrogate import collect_image_ids, plan_calls, render_reply
+from mcp_chat.localities import GeoServerGazetteer, attach_localities
 from mcp_chat.map_layers import map_catalog
 from mcp_chat.mcp_client import (
     HttpMcpClient,
@@ -40,6 +41,7 @@ def create_app(
     settings: Settings | None = None,
     mcp: McpGateway | None = None,
     forced_user: str | None = None,
+    locality_lookup: Any | None = None,
 ) -> FastAPI:
     """Build the FastAPI app. Tests pass a fake gateway and a forced user."""
     resolved = settings or load_settings()
@@ -47,6 +49,7 @@ def create_app(
     app = FastAPI(title="MCP chat tester", docs_url=None, redoc_url=None)
     app.state.settings = resolved
     app.state.mcp = gateway
+    app.state.locality_lookup = locality_lookup or GeoServerGazetteer().lookup
     install_auth(app, resolved, forced_user)
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
@@ -114,7 +117,14 @@ def create_app(
                     "preview": outcome.text[:1200],
                 }
             )
-        places = [place.to_dict() for place in places_from_outcomes(outcomes)]
+        places = [
+            place.to_dict()
+            for place in attach_localities(
+                places_from_outcomes(outcomes),
+                body.message,
+                app.state.locality_lookup,
+            )
+        ]
         return {
             "reply": render_reply(body.message, outcomes),
             "calls": calls,
