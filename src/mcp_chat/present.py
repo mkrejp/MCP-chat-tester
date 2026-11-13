@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from mcp_chat.image_proxy import is_rag_image_url, scrub_rag_image_urls
+
 _URL = re.compile(r"https?://[^\s<>\"']+")
 _UUID = re.compile(
     r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
@@ -23,15 +25,20 @@ _MACHINE = re.compile(
 
 
 def readable_text(value: str) -> str:
-    """Remove document ids and machine tags. Keep web addresses intact.
+    """Remove document ids and machine tags. Keep public web addresses.
 
-    Coordinates are parsed from the raw hit before this runs, so dropping
-    ``lat=`` / ``lon=`` here only affects what a person reads.
+    Auth-gated RAG ``/images/...`` links are rewritten to the same-origin
+    image proxy. Coordinates are parsed from the raw hit before this runs,
+    so dropping ``lat=`` / ``lon=`` here only affects what a person reads.
     """
     protected: list[str] = []
 
     def _hold(match: re.Match[str]) -> str:
-        protected.append(match.group(0).rstrip(".,;)"))
+        url = match.group(0).rstrip(".,;)")
+        if is_rag_image_url(url):
+            protected.append(scrub_rag_image_urls(url))
+        else:
+            protected.append(url)
         return f"\x00{len(protected) - 1}\x00"
 
     text = _URL.sub(_hold, value or "")
@@ -57,8 +64,15 @@ def readable_title(hit: dict[str, Any]) -> str:
 
 
 def public_url(value: object) -> str:
-    """Return an http(s) URL, or an empty string."""
+    """Return a browser-safe http(s) URL, or an empty string.
+
+    RAG ``/images/...`` paths require a bearer token the browser does not
+    have, so they are omitted. Cards load those pictures through
+    ``/api/images`` instead.
+    """
     text = str(value or "").strip()
-    if text.startswith(("http://", "https://")):
-        return text
-    return ""
+    if not text.startswith(("http://", "https://")):
+        return ""
+    if is_rag_image_url(text):
+        return ""
+    return text

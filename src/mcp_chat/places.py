@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from mcp_chat.image_proxy import image_id_from_rag_url
 from mcp_chat.mcp_client import ToolOutcome
 from mcp_chat.present import public_url, readable_text, readable_title
 
@@ -106,7 +107,7 @@ def _place_from_hit(hit: dict[str, Any]) -> Place:
     lat, lon, source = _coords_from_hit(hit)
     if not _valid(lat, lon):
         lat, lon, source = _coords_from_text(content)
-    image_id = str(hit.get("page_image_id") or hit.get("image_id") or "").strip()
+    image_id, url = _browser_image_fields(hit)
     kind = str(hit.get("source_type") or hit.get("kind") or "hit")
     return Place(
         id="",
@@ -118,8 +119,28 @@ def _place_from_hit(hit: dict[str, Any]) -> Place:
         image_id=image_id,
         doc_id=str(hit.get("doc_id") or ""),
         kind=kind,
-        url=public_url(hit.get("url") or hit.get("source_url")),
+        url=url,
     )
+
+
+def _browser_image_fields(hit: dict[str, Any]) -> tuple[str, str]:
+    """Return a proxyable image id and a non-auth browser URL."""
+    image_id = str(hit.get("page_image_id") or hit.get("image_id") or "").strip()
+    raw_url = str(hit.get("url") or hit.get("source_url") or "").strip()
+    from_url = image_id_from_rag_url(raw_url) or image_id_from_rag_url(image_id)
+    if from_url and (
+        not image_id
+        or image_id.startswith("http://")
+        or image_id.startswith("https://")
+        or image_id.startswith("/images/")
+    ):
+        image_id = from_url
+    if image_id.startswith("http://") or image_id.startswith("https://"):
+        image_id = image_id_from_rag_url(image_id) or ""
+    if image_id.startswith("/images/"):
+        image_id = image_id.rstrip("/").rsplit("/", 1)[-1]
+    # Auth-gated RAG image URLs are never "Open source" hrefs.
+    return image_id, public_url(raw_url)
 
 
 def _coords_from_hit(

@@ -45,3 +45,12 @@ def test_title_and_public_url_ignore_bare_ids() -> None:
         public_url(f"https://example.com/{doc_id}") == f"https://example.com/{doc_id}"
     )
     assert public_url("javascript:alert(1)") == ""
+    assert public_url(f"https://rag.example/images/{doc_id}/page:{doc_id}:1") == ""
+
+
+def test_readable_text_rewrites_rag_image_urls() -> None:
+    """Auth-gated RAG image links become same-origin proxy paths."""
+    raw = "See https://rag.example/images/doc-1/page:doc-1:2 for the plate."
+    cleaned = readable_text(raw)
+    assert "rag.example/images/" not in cleaned
+    assert "/api/images?image_id=page%3Adoc-1%3A2" in cleaned

@@ -59,7 +59,9 @@ def test_reading_copy_drops_document_ids_and_keeps_links() -> None:
     assert doc_id not in place["text"]
     assert "page:" not in place["text"]
     assert "https://example.com/vila" in place["text"]
-    assert place["url"].startswith("https://example.com/images/")
+    # Auth-gated /images/... links are not browser "Open source" targets.
+    assert place["url"] == ""
+    assert place["image_id"] == "abcdabcdabcdabcd"
     assert place["lat"] == 50.07
 
 
