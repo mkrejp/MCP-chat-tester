@@ -42,6 +42,27 @@ def test_json_hit_keeps_coordinates_text_and_image(
     assert place["doc_id"] == "doc-9"
 
 
+def test_reading_copy_drops_document_ids_and_keeps_links() -> None:
+    """Encoded document ids leave the note. A web address stays readable."""
+    doc_id = "6210cafc-b01e-49ce-bbcf-4faed684d330"
+    text = (
+        '[{"doc_id":"' + doc_id + '",'
+        '"parent_document":"Vila Hradecinska.pdf",'
+        '"content":"Secese na namesti. See https://example.com/vila '
+        "and page:" + doc_id + ":3 doc_id=" + doc_id + ' lat=50.07 lon=14.45",'
+        '"url":"https://example.com/images/' + doc_id + '/abcdabcdabcdabcd",'
+        '"lat":50.07,"lon":14.45,"geo_source":"refined"}]'
+    )
+    outcome = ToolOutcome(name="search_domain_knowledge", arguments={}, text=text)
+    place = places_from_outcomes([outcome])[0].to_dict()
+    assert place["title"] == "Vila Hradecinska.pdf"
+    assert doc_id not in place["text"]
+    assert "page:" not in place["text"]
+    assert "https://example.com/vila" in place["text"]
+    assert place["url"].startswith("https://example.com/images/")
+    assert place["lat"] == 50.07
+
+
 def test_text_coordinates_and_rejected_ranges() -> None:
     """Labeled coordinates are read. Values outside the globe are dropped."""
     labeled = ToolOutcome(
@@ -74,4 +95,7 @@ def test_map_catalog_lists_geoserver_context_without_secrets() -> None:
     ]
     assert catalog["wms_url"].startswith("https://geoserver-production-4d0d")
     assert "token" not in str(catalog).lower()
-    assert any(layer["default_on"] for layer in catalog["layers"])
+    stored = next(
+        layer for layer in catalog["layers"] if layer["id"] == "locality_links"
+    )
+    assert stored["default_on"] is False

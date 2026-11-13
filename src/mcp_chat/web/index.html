@@ -3,70 +3,106 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MCP chat</title>
+    <title>Atelier — artists atlas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap"
+      rel="stylesheet"
+    />
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=artists-1" />
   </head>
   <body>
-    <aside class="sidebar">
-      <p class="eyebrow">MCP inspection</p>
-      <h1>Knowledge server</h1>
+    <header class="mast">
+      <a class="mark" href="/">
+        <span class="mark-badge">A</span>
+        atelier
+      </a>
+      <p class="mast-note">Atlas of artists</p>
       <p id="who" class="who"></p>
-      <p id="conn" class="status">Checking connection…</p>
-      <p id="server" class="server"></p>
-      <button id="refresh" type="button">Refresh MCP servers</button>
-      <section>
-        <h2>Tools</h2>
-        <ul id="tools"></ul>
-      </section>
-      <section>
-        <h2>Resources</h2>
-        <ul id="resources"></ul>
-      </section>
-      <section>
-        <h2>Prompts</h2>
-        <ul id="prompts"></ul>
-      </section>
-      <a class="logout" href="/auth/logout">Sign out</a>
-    </aside>
-    <main>
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">Chat</p>
-          <h2>Ask the archive</h2>
-        </div>
-      </header>
-      <div class="workspace">
-        <section class="reading" aria-live="polite">
-          <p id="reading" class="lead">
-            Ask a question. Facts with text, pictures, and GPS show here.
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <p class="eyebrow"><span class="dot"></span> Archive link</p>
+        <h1>Knowledge server</h1>
+        <p id="conn" class="status">Checking connection…</p>
+        <p id="server" class="server"></p>
+        <button id="refresh" type="button">Refresh servers</button>
+        <section>
+          <h2>Tools</h2>
+          <ul id="tools"></ul>
+        </section>
+        <section>
+          <h2>Resources</h2>
+          <ul id="resources"></ul>
+        </section>
+        <section>
+          <h2>Prompts</h2>
+          <ul id="prompts"></ul>
+        </section>
+        <a class="logout" href="/auth/logout">Sign out</a>
+      </aside>
+      <main>
+        <div class="intro">
+          <p class="eyebrow"><span class="dot"></span> A small atlas of a large archive</p>
+          <h2>Atelier.</h2>
+          <p class="deck">
+            Every artist is a whole world. Ask the archive. Each note is numbered,
+            and the same number marks its place on the map.
           </p>
-          <div id="facts" class="facts"></div>
-          <details id="calls" hidden>
-            <summary>Tool calls</summary>
-            <div id="calls-body"></div>
-          </details>
-        </section>
-        <section class="atlas" aria-label="Map">
-          <div id="map"></div>
-          <p id="map-note" class="map-note"></p>
-        </section>
-      </div>
-      <form id="composer">
-        <label class="sr" for="message">Message</label>
-        <textarea
-          id="message"
-          name="message"
-          rows="2"
-          required
-          placeholder="What does the server know about Vršovice secession?"
-        ></textarea>
-        <button type="submit">Send</button>
-      </form>
-    </main>
+        </div>
+        <div class="workspace">
+          <div class="frames">
+            <section class="frame" aria-live="polite">
+              <header class="frame-head">
+                <p class="eyebrow">Reading</p>
+                <h3>This search</h3>
+              </header>
+              <div id="reading" class="frame-scroll lead">
+                <p>
+                  Ask a question. The reply stays in this frame, and the notes
+                  beside it scroll on their own.
+                </p>
+              </div>
+            </section>
+            <section class="frame">
+              <header class="frame-head">
+                <p class="eyebrow">Notes</p>
+                <h3>Found for each point</h3>
+              </header>
+              <div id="facts" class="frame-scroll facts"></div>
+              <details id="calls" hidden>
+                <summary>Tool calls</summary>
+                <div id="calls-body"></div>
+              </details>
+            </section>
+          </div>
+          <section class="frame map-frame" aria-label="Map">
+            <header class="frame-head">
+              <p class="eyebrow">Map</p>
+              <h3>Numbered places</h3>
+            </header>
+            <div id="map"></div>
+            <p id="map-note" class="map-note"></p>
+          </section>
+        </div>
+        <form id="composer">
+          <label class="sr" for="message">Message</label>
+          <textarea
+            id="message"
+            name="message"
+            rows="2"
+            required
+            placeholder="Ask about an artist, a studio, a street, a picture…"
+          ></textarea>
+          <button type="submit">Ask</button>
+        </form>
+      </main>
+    </div>
     <dialog id="lightbox">
       <form method="dialog">
         <button type="submit">Close</button>
@@ -74,6 +110,6 @@
       <img id="lightbox-image" alt="" />
     </dialog>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=artists-1"></script>
   </body>
 </html>

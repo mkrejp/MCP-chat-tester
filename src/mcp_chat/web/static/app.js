@@ -18,6 +18,9 @@ const markers = new Map();
 let map;
 let answerLayer;
 let activeId = "";
+let searchToken = 0;
+let pendingPlaces = [];
+let hasSearch = false;
 
 function list(target, items, empty) {
   target.replaceChildren();
@@ -45,10 +48,83 @@ function imageUrl(imageId) {
   return `/api/images?image_id=${encodeURIComponent(imageId)}`;
 }
 
+function badge(id) {
+  return String(id).padStart(2, "0");
+}
+
 function openLightbox(src, alt) {
   lightboxImage.src = src;
   lightboxImage.alt = alt;
   if (!lightbox.open) lightbox.showModal();
+}
+
+function appendInline(parent, text) {
+  const pattern = /(\*\*[^*]+\*\*|https?:\/\/[^\s<>"']+)/g;
+  let cursor = 0;
+  for (const match of text.matchAll(pattern)) {
+    const start = match.index ?? 0;
+    if (start > cursor) parent.append(text.slice(cursor, start));
+    const token = match[0];
+    if (token.startsWith("**")) {
+      const strong = document.createElement("strong");
+      strong.textContent = token.slice(2, -2);
+      parent.append(strong);
+    } else {
+      const link = document.createElement("a");
+      const href = token.replace(/[.,;)]+$/, "");
+      link.href = href;
+      link.textContent = href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      parent.append(link);
+      if (href.length < token.length) parent.append(token.slice(href.length));
+    }
+    cursor = start + token.length;
+  }
+  if (cursor < text.length) parent.append(text.slice(cursor));
+}
+
+function setReading(text) {
+  reading.replaceChildren();
+  const blocks = String(text || "").split(/\n{2,}/);
+  let list = null;
+  const flush = () => {
+    if (list) {
+      reading.append(list);
+      list = null;
+    }
+  };
+  for (const block of blocks.length ? blocks : [""]) {
+    const lines = block.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith("### ")) {
+        flush();
+        const heading = document.createElement("h3");
+        appendInline(heading, trimmed.slice(4));
+        reading.append(heading);
+        continue;
+      }
+      if (trimmed.startsWith("- ")) {
+        if (!list) list = document.createElement("ul");
+        const item = document.createElement("li");
+        appendInline(item, trimmed.slice(2));
+        list.append(item);
+        continue;
+      }
+      flush();
+      const paragraph = document.createElement("p");
+      appendInline(paragraph, trimmed);
+      reading.append(paragraph);
+    }
+  }
+  flush();
+  if (!reading.childElementCount) {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = "The archive returned no reading for this question.";
+    reading.append(paragraph);
+  }
 }
 
 async function loadMe() {
@@ -104,39 +180,58 @@ function setupMap(catalog) {
     overlays[layer.title] = tiles;
     if (layer.default_on) tiles.addTo(map);
   }
-  L.control.layers({ [catalog.base.title]: base }, overlays, { collapsed: false }).addTo(map);
+  L.control.layers({ [catalog.base.title]: base }, overlays, {
+    collapsed: false,
+  }).addTo(map);
   mapNote.textContent =
-    "OpenStreetMap under the answer points. GeoServer layers are the stored localities and boundaries.";
+    "Numbered pins are this search. Stored localities stay in the map key until you turn them on.";
 }
 
 async function loadMap() {
   const response = await fetch("/api/map/layers");
   if (!response.ok) return;
   setupMap(await response.json());
+  if (hasSearch) renderMarkers(pendingPlaces);
+}
+
+function paintActive() {
+  document.querySelectorAll(".card").forEach((card) => {
+    card.classList.toggle("active", card.dataset.id === activeId);
+  });
+  document.querySelectorAll(".atlas-pin").forEach((pin) => {
+    pin.classList.toggle("is-active", pin.dataset.id === activeId);
+  });
 }
 
 function selectPlace(id) {
   activeId = id;
-  document.querySelectorAll(".card").forEach((card) => {
-    card.classList.toggle("active", card.dataset.id === id);
-  });
+  paintActive();
   const marker = markers.get(id);
   if (marker && map) {
     const point = marker.getLatLng();
     map.setView(point, Math.max(map.getZoom(), 13));
-    marker.openPopup();
+    marker.openTooltip();
   }
-  const card = document.querySelector(`.card[data-id="${id}"]`);
+  const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
   if (card) card.scrollIntoView({ block: "nearest" });
 }
 
 function renderFacts(places) {
   facts.replaceChildren();
-  if (!places.length) return;
+  if (!places.length) {
+    const empty = document.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "This search has no notes yet.";
+    facts.append(empty);
+    return;
+  }
   for (const place of places) {
     const card = document.createElement("article");
     card.className = "card";
     card.dataset.id = place.id;
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = badge(place.id);
     if (place.image_id) {
       const img = document.createElement("img");
       img.alt = place.title;
@@ -145,64 +240,100 @@ function renderFacts(places) {
         event.stopPropagation();
         openLightbox(img.src, place.title);
       });
-      card.append(img);
+      card.append(num, img);
     } else {
       const empty = document.createElement("div");
       empty.className = "placeholder";
       empty.textContent = "No picture";
-      card.append(empty);
+      card.append(num, empty);
     }
     const copy = document.createElement("div");
     const title = document.createElement("h3");
-    title.textContent = place.title || "Fact";
+    title.textContent = place.title || "Finding";
     const meta = document.createElement("p");
     meta.className = "meta";
     const bits = [place.kind, place.geo_source].filter(Boolean);
     if (place.lat != null && place.lon != null) {
       bits.push(`${Number(place.lat).toFixed(5)}, ${Number(place.lon).toFixed(5)}`);
     } else {
-      bits.push("no GPS on this fact");
+      bits.push("no GPS on this note");
     }
     meta.textContent = bits.join(" · ");
-    const excerpt = document.createElement("p");
+    const excerpt = document.createElement("div");
     excerpt.className = "excerpt";
-    excerpt.textContent = place.text || "";
+    appendInline(excerpt, place.text || "");
     copy.append(title, meta, excerpt);
+    if (place.url) {
+      const source = document.createElement("a");
+      source.className = "source-link";
+      source.href = place.url;
+      source.target = "_blank";
+      source.rel = "noopener noreferrer";
+      source.textContent = "Open source";
+      source.addEventListener("click", (event) => event.stopPropagation());
+      copy.append(source);
+    }
     card.append(copy);
     card.addEventListener("click", () => selectPlace(place.id));
     facts.append(card);
   }
+  paintActive();
+}
+
+function clearAnswerPoints() {
+  if (answerLayer) {
+    answerLayer.clearLayers();
+    if (map && !map.hasLayer(answerLayer)) answerLayer.addTo(map);
+  }
+  markers.clear();
+  if (map) map.closePopup();
+}
+
+function markerTip(place) {
+  const tip = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = `${badge(place.id)}  ${place.title || "Finding"}`;
+  const blurb = document.createElement("p");
+  blurb.textContent = (place.text || "").replace(/\s+/g, " ").slice(0, 220);
+  tip.append(strong, blurb);
+  if (place.lat != null && place.lon != null) {
+    const where = document.createElement("p");
+    where.textContent = `${Number(place.lat).toFixed(5)}, ${Number(place.lon).toFixed(5)}`;
+    tip.append(where);
+  }
+  return tip;
 }
 
 function renderMarkers(places) {
+  pendingPlaces = places;
   if (!map || !answerLayer) return;
-  answerLayer.clearLayers();
-  markers.clear();
+  clearAnswerPoints();
   const points = [];
   for (const place of places) {
     if (place.lat == null || place.lon == null) continue;
-    const color = place.geo_source === "refined" ? "#0f6e6a" : "#8c3a2f";
-    const marker = L.circleMarker([place.lat, place.lon], {
-      radius: 8,
-      color,
-      weight: 2,
-      fillColor: color,
-      fillOpacity: 0.85,
+    const icon = L.divIcon({
+      className: "atlas-pin",
+      html: `<span>${badge(place.id)}</span>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
     });
-    const popup = document.createElement("div");
-    const strong = document.createElement("strong");
-    strong.textContent = place.title || "Fact";
-    popup.append(strong);
-    if (place.image_id) {
-      const img = document.createElement("img");
-      img.alt = "";
-      img.src = imageUrl(place.image_id);
-      popup.append(img);
-    }
-    const blurb = document.createElement("p");
-    blurb.textContent = (place.text || "").slice(0, 220);
-    popup.append(blurb);
-    marker.bindPopup(popup);
+    const marker = L.marker([place.lat, place.lon], {
+      icon,
+      zIndexOffset: 600,
+      title: `${badge(place.id)} ${place.title || "Finding"}`,
+    });
+    marker.bindTooltip(markerTip(place), {
+      direction: "top",
+      offset: [0, -14],
+      opacity: 1,
+      className: "pin-tip",
+    });
+    marker.on("add", () => {
+      const element = marker.getElement();
+      if (!element) return;
+      element.dataset.id = place.id;
+      element.classList.toggle("is-active", activeId === place.id);
+    });
     marker.on("click", () => selectPlace(place.id));
     marker.addTo(answerLayer);
     markers.set(place.id, marker);
@@ -211,11 +342,11 @@ function renderMarkers(places) {
   if (points.length === 1) {
     map.setView(points[0], 14);
   } else if (points.length > 1) {
-    map.fitBounds(points, { padding: [28, 28], maxZoom: 14 });
+    map.fitBounds(points, { padding: [36, 36], maxZoom: 14 });
   }
   mapNote.textContent = points.length
-    ? `${points.length} fact${points.length === 1 ? "" : "s"} with GPS. Toggle GeoServer layers in the map key.`
-    : "This answer has no GPS. Stored locality points stay on the GeoServer layer.";
+    ? `${points.length} numbered place${points.length === 1 ? "" : "s"} for this search. The number matches the note.`
+    : "This search has no GPS, so the previous pins were cleared.";
 }
 
 function renderCalls(items) {
@@ -236,20 +367,29 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const text = message.value.trim();
   if (!text) return;
+  const token = ++searchToken;
+  hasSearch = true;
   message.value = "";
-  reading.textContent = "Searching the knowledge server…";
+  activeId = "";
+  setReading("Looking through the archive…");
   facts.replaceChildren();
+  clearAnswerPoints();
+  pendingPlaces = [];
+  mapNote.textContent = "Replacing the numbered pins for this search…";
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ message: text }),
   });
+  if (token !== searchToken) return;
   const body = await response.json().catch(() => ({}));
+  if (token !== searchToken) return;
   if (!response.ok) {
-    reading.textContent = body.detail || "The question could not be sent.";
+    setReading(body.detail || "The question could not be sent.");
+    mapNote.textContent = "The search did not finish, so the previous pins stay cleared.";
     return;
   }
-  reading.textContent = body.reply || "";
+  setReading(body.reply || "");
   renderCalls(body.calls);
   renderFacts(body.places || []);
   renderMarkers(body.places || []);

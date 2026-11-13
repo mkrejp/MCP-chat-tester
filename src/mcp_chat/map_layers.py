@@ -29,7 +29,7 @@ _LAYERS: tuple[dict[str, Any], ...] = (
         "title": "Stored localities",
         "wms_name": "trails:locality_links",
         "description": "GPS points already stored for locality mentions.",
-        "default_on": True,
+        "default_on": False,
     },
     {
         "id": "layer_objects",
@@ -56,8 +56,8 @@ def map_catalog() -> dict[str, Any]:
         },
         "answer_layer": {
             "id": "answer",
-            "title": "This answer",
-            "description": "GPS on the facts returned for the current question.",
+            "title": "This search",
+            "description": "Numbered GPS points for the notes in the current search.",
         },
         "layers": list(_LAYERS),
     }

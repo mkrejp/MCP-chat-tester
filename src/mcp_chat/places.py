@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from mcp_chat.mcp_client import ToolOutcome
+from mcp_chat.present import public_url, readable_text, readable_title
 
 _LAT_LON = re.compile(
     r"lat=([+-]?\d+(?:\.\d+)?)\s+lon=([+-]?\d+(?:\.\d+)?)",
@@ -33,6 +34,7 @@ class Place:
     image_id: str
     doc_id: str
     kind: str
+    url: str
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the card for the chat response."""
@@ -46,6 +48,7 @@ class Place:
             "image_id": self.image_id,
             "doc_id": self.doc_id,
             "kind": self.kind,
+            "url": self.url,
         }
 
 
@@ -85,13 +88,14 @@ def _places_in_text(text: str) -> list[Place]:
         Place(
             id="",
             title=_title_from_text(stripped),
-            text=stripped[:700],
+            text=readable_text(stripped)[:700],
             lat=lat,
             lon=lon,
             geo_source=source,
             image_id=_first_image_id(stripped),
             doc_id="",
             kind="passage",
+            url="",
         )
     ]
 
@@ -107,25 +111,18 @@ def _place_from_hit(hit: dict[str, Any]) -> Place:
     elif not source:
         source = "original"
     image_id = str(hit.get("page_image_id") or hit.get("image_id") or "").strip()
-    title = str(
-        hit.get("title")
-        or hit.get("caption")
-        or hit.get("parent_document")
-        or hit.get("filename")
-        or hit.get("doc_id")
-        or "Hit"
-    ).strip()
     kind = str(hit.get("source_type") or hit.get("kind") or "hit")
     return Place(
         id="",
-        title=title,
-        text=content[:700],
+        title=readable_title(hit),
+        text=readable_text(content)[:700],
         lat=lat,
         lon=lon,
         geo_source=source if lat is not None else "",
         image_id=image_id,
         doc_id=str(hit.get("doc_id") or ""),
         kind=kind,
+        url=public_url(hit.get("url") or hit.get("source_url")),
     )
 
 
@@ -215,6 +212,7 @@ def _with_ids(places: list[Place]) -> list[Place]:
                 image_id=place.image_id,
                 doc_id=place.doc_id,
                 kind=place.kind,
+                url=place.url,
             )
         )
     return numbered

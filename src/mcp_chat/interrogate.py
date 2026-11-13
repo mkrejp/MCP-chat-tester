@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from mcp_chat.mcp_client import ToolOutcome
+from mcp_chat.present import readable_text, readable_title
 
 READ_ONLY_TOOLS = frozenset(
     {
@@ -134,11 +135,10 @@ def summarize_tool_text(text: str) -> str:
         return "The tool returned no matching hits."
     lines: list[str] = []
     for hit in hits[:5]:
-        content = _plain(str(hit.get("content") or hit.get("text") or "")).strip()
+        raw = str(hit.get("content") or hit.get("text") or "")
+        content = _plain(readable_text(raw))
         content = content[:500]
-        title = _plain(
-            str(hit.get("title") or hit.get("doc_id") or hit.get("source") or "hit")
-        )
+        title = _plain(readable_title(hit))
         score = hit.get("score")
         score_bit = f" (score {score})" if isinstance(score, int | float) else ""
         page = hit.get("page") or hit.get("page_number")
