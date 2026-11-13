@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
 from fastapi.testclient import TestClient
 
 from mcp_chat.app import create_app
@@ -21,9 +22,10 @@ if TYPE_CHECKING:
 class FakeMcp:
     """In-memory gateway used by the route tests."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, oversized: bool = False) -> None:
         """Start connected with the two search tools the planner expects."""
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.oversized = oversized
 
     async def inspect(self) -> Inspection:
         """Return a connected snapshot with no secret material."""
@@ -44,6 +46,18 @@ class FakeMcp:
         """Record the call and return one JSON hit or a tiny image."""
         self.calls.append((name, arguments))
         if name == "get_image":
+            if self.oversized:
+                image_id = str(arguments.get("image_id") or "")
+                return ToolOutcome(
+                    name=name,
+                    arguments=arguments,
+                    text=(
+                        "Image exceeds MCP inline limit (9000000 bytes). "
+                        "Fetch via authenticated HTTP: "
+                        f"https://rag.example/images/doc-1/{image_id}"
+                    ),
+                    images=(),
+                )
             return ToolOutcome(
                 name=name,
                 arguments=arguments,
@@ -52,7 +66,8 @@ class FakeMcp:
             )
         hit = (
             '[{"doc_id":"doc-1","content":"A fact","score":1,'
-            '"page_image_id":"page:doc-1:1"}]'
+            '"page_image_id":"page:doc-1:1",'
+            '"url":"https://rag.example/images/doc-1/page:doc-1:1"}]'
         )
         return ToolOutcome(
             name=name,
@@ -117,10 +132,49 @@ def test_signed_in_chat_searches_and_hides_the_token() -> None:
     assert "ingest_text" not in {name for name, _args in gateway.calls}
     assert payload["images"] == [{"image_id": "page:doc-1:1"}]
     assert "secret-token" not in chat.text
+    assert "rag.example/images/" not in chat.text
+    assert "/api/images?image_id=" in chat.text
     image = client.get("/api/images", params={"image_id": "page:doc-1:1"})
     assert image.status_code == 200
     assert image.headers["content-type"].startswith("image/png")
     assert image.content == b"hi"
+
+
+def test_oversized_image_is_fetched_with_bearer(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """When MCP returns a URL hint, this app fetches bytes with the token."""
+    gateway = FakeMcp(oversized=True)
+    seen: dict[str, str] = {}
+
+    class _Transport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            seen["authorization"] = request.headers.get("Authorization", "")
+            seen["url"] = str(request.url)
+            return httpx.Response(
+                200,
+                content=b"big-png",
+                headers={"content-type": "image/png"},
+                request=request,
+            )
+
+    real_client = httpx.AsyncClient
+
+    def fake_async_client(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        kwargs = dict(kwargs)
+        kwargs["transport"] = _Transport()
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr("mcp_chat.image_proxy.httpx.AsyncClient", fake_async_client)
+    client = TestClient(
+        create_app(_settings(), mcp=gateway, forced_user="reader@example.com")
+    )
+    image = client.get("/api/images", params={"image_id": "page:doc-1:1"})
+    assert image.status_code == 200
+    assert image.content == b"big-png"
+    assert seen["authorization"] == "Bearer secret-token"
+    assert "Missing or invalid bearer token" not in image.text
+    assert seen["url"].endswith("/images/doc-1/page:doc-1:1")
 
 
 def test_translate_requires_session_and_deepl_key() -> None:

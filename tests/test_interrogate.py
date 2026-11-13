@@ -64,3 +64,15 @@ def test_summarize_json_hits_and_collect_page_images() -> None:
     reply = render_reply("secese", [outcome])
     assert "search_domain_knowledge" in reply
     assert "data:image" not in reply
+
+
+def test_summarize_scrubs_authenticated_rag_urls() -> None:
+    """Plain tool text must not leave clickable RAG /images links for the browser."""
+    text = (
+        "Source: doc (source_type=pdf_chunk) "
+        "page_url=https://rag.example/images/abc/page:abc:2\n"
+        "Content: secese"
+    )
+    summary = summarize_tool_text(text)
+    assert "rag.example/images/" not in summary
+    assert "/api/images?image_id=page%3Aabc%3A2" in summary
