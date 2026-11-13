@@ -20,7 +20,11 @@ from mcp_chat.image_proxy import (
     scrub_rag_image_urls,
 )
 from mcp_chat.interrogate import collect_image_ids, plan_calls, render_reply
-from mcp_chat.localities import GeoServerGazetteer, attach_localities
+from mcp_chat.localities import (
+    GeoServerGazetteer,
+    attach_localities,
+    primary_locality,
+)
 from mcp_chat.map_layers import map_catalog
 from mcp_chat.mcp_client import (
     HttpMcpClient,
@@ -99,7 +103,8 @@ def create_app(
                 detail=snapshot.detail or "MCP server is not connected.",
             )
         names = {tool.name for tool in snapshot.tools}
-        planned = plan_calls(body.message, names)
+        place = primary_locality(body.message, app.state.locality_lookup)
+        planned = plan_calls(body.message, names, place=place)
         outcomes: list[ToolOutcome] = []
         calls: list[dict[str, Any]] = []
         for item in planned:
@@ -124,14 +129,14 @@ def create_app(
                 }
             )
         places = [
-            place.to_dict()
-            for place in attach_localities(
+            item.to_dict()
+            for item in attach_localities(
                 places_from_outcomes(outcomes),
                 body.message,
                 app.state.locality_lookup,
             )
         ]
-        return {
+        payload: dict[str, Any] = {
             "reply": render_reply(body.message, outcomes),
             "calls": calls,
             "places": places,
@@ -139,6 +144,9 @@ def create_app(
                 {"image_id": image_id} for image_id in collect_image_ids(outcomes)
             ],
         }
+        if place is not None:
+            payload["focus"] = place.to_focus_dict()
+        return payload
 
     @app.get("/api/images")
     async def image(image_id: str) -> Response:
