@@ -1,50 +1,53 @@
-# MCP-chat-tester
-light weight client for MCP interogation
+# MCP chat tester
 
+Google-signed-in chat page for interrogating the [fastmcp-rag-timer](https://github.com/mkrejp/fastmcp-rag-timer) MCP server. The browser talks only to this app. This process holds the bearer token, calls Streamable HTTP MCP, and returns text plus page images.
 
-Build a lightweight, modern web-based AI chat client that connects to the Hugging Face Inference API (using a free `HF_TOKEN`) and integrates with authenticated local and/or remote Model Context Protocol (MCP) servers (including RAG/knowledge-base MCP servers that return both text and images).
+Credential names match [fastmcp-rag-timer-frontend](https://github.com/mkrejp/fastmcp-rag-timer-frontend). Copy the existing Railway values; do not create a second Google client or a second MCP token.
 
-### Tech Stack & Architecture
-- **Frontend:** Next.js (App Router) or React + Vite with Tailwind CSS. Keep the UI clean, minimal, and fast (similar to ChatGPT/Claude).
-- **Backend / API Route:** Node.js / TypeScript backend endpoint (`/api/chat`) that handles streaming responses, manages authenticated MCP client connections, and routes tool calls between Hugging Face and the MCP servers.
-- **MCP & AI SDK:** Use `@modelcontextprotocol/sdk` alongside `@huggingface/inference` (or `@huggingface/mcp-client` if compatible with custom auth headers and multimodal tool outputs). Using `@modelcontextprotocol/sdk` directly is preferred so we have full control over custom auth headers and multimodal `content` arrays (`text` + `image`).
+| Variable | Role |
+| --- | --- |
+| `GOOGLE_CLIENT_ID` | Same OAuth client id |
+| `GOOGLE_CLIENT_SECRET` | Same OAuth client secret |
+| `GOOGLE_ALLOWED_EMAILS` | Same comma-separated allowlist |
+| `MCP_API_TOKEN` | Same bearer token the RAG server accepts |
+| `MCP_SERVER_URL` | Default `https://rag-timer-00001-production.up.railway.app/mcp/` |
+| `PUBLIC_BASE_URL` | Origin used for the Google callback |
+| `SESSION_SECRET` | Cookie signing key for this app |
 
-### Core Features Required
-1. **Configuration, Auth & Settings Drawer/Modal:**
-   - Allow configuring the `HF_TOKEN` (defaulting to `process.env.HF_TOKEN` on the backend, with an optional override in the UI).
-   - Allow selecting or typing a Hugging Face tool-capable model ID (default to `Qwen/Qwen2.5-72B-Instruct`, with presets like `meta-llama/Llama-3.3-70B-Instruct`).
-   - Support adding/editing multiple MCP servers via a `mcp.config.json` file with **full authentication support**:
-     - For `sse` / `streamable-http` servers: support `url` and custom `headers` (e.g., `"Authorization": "Bearer ${MCP_SERVER_TOKEN}"`).
-     - For `stdio` servers: support `command`, `args`, and custom `env` variables (e.g., `"API_TOKEN": "${MCP_SERVER_TOKEN}"`).
-     - Resolve `${ENV_VAR}` placeholders safely from `.env` on the backend.
+`/health`, `/auth/*`, and `/static/*` are public. `/` and `/api/*` require a Google session. The token is not included in HTML, JSON, or image responses.
 
-2. **MCP & RAG Inspection Panel (Sidebar):**
-   - Fetch and display all connected MCP servers, their auth/connection status (Connected / Auth Error / Offline), and transport type.
-   - List all discovered **Tools**, **Resources**, and **Prompts** exposed by the connected MCP/RAG servers so I can inspect available capabilities.
-   - Include a "Refresh MCP Servers" button to reload connections and tools without restarting the app.
+The Google client must allow `{PUBLIC_BASE_URL}/auth/callback`. For this machine that is `http://127.0.0.1:8000/auth/callback`.
 
-3. **Intelligent Streaming Chat & Multimodal Image Rendering:**
-   - Stream assistant responses token-by-token.
-   - **Multimodal MCP Content Handling (Text + Images):**
-     - When an MCP tool or RAG server returns a content array containing `image` items (e.g., `{ type: "image", data: "<base64>", mimeType: "image/png" }`) or image URLs alongside `text` items:
-       1. Strip or summarize raw base64 image blobs before sending the tool result back to the Hugging Face text LLM so it does not overflow the model's context window.
-       2. Forward the actual image(s) directly to the frontend UI stream and render them cleanly inside the chat message (with click-to-zoom/lightbox preview and download button).
-   - **Tool & RAG Transparency:** Display a collapsible status badge/accordion inside the chat message showing:
-     - Which MCP server and tool was called.
-     - Input arguments sent to the tool.
-     - Retrieved text chunks/citations AND thumbnails of any images returned by the MCP server.
-   - Render Markdown properly (including code blocks with copy buttons and source citations).
+Each question plans read-only tool calls (`search_domain_knowledge`, and `search_images` or `list_documents` when the wording asks for them). Write tools such as `ingest_text` are never called. The sidebar lists tools, resources, and prompts from the live server.
 
-4. **System Prompt Optimization:**
-   - Include an editable system prompt pre-configured to instruct the model to query available MCP/RAG tools before answering, cite retrieved documents, and reference any visual charts/images returned by the tools.
+## Run
 
-### Project Setup & Deliverables
-1. Scaffold the project cleanly with TypeScript.
-2. Create an example `mcp.config.json` demonstrating:
-   - An authenticated remote `SSE` / `HTTP` MCP RAG server using `"Authorization": "Bearer ${MCP_SERVER_TOKEN}"`.
-   - An authenticated local `stdio` MCP server passing `"MCP_TOKEN": "${MCP_SERVER_TOKEN}"` via `env`.
-3. Create a `.env.example` file with `HF_TOKEN=hf_...` and `MCP_SERVER_TOKEN=...`.
-4. Add a concise `README.md` explaining how to configure tokens, connect MCP servers, and run the app locally.
+```text
+uv sync --all-groups
+cp .env.example .env
+uv run python -m mcp_chat
+```
 
-Start by outlining the folder structure, installing the required dependencies (`@modelcontextprotocol/sdk`, `@huggingface/inference`, etc.), and building the authenticated MCP + multimodal handler on the backend first.
+Open `http://127.0.0.1:8000`. Railway health checks should use `GET /health`.
 
+The production service is the existing Railway app `fastmcp-rag-timer-frontend` in project `perfect-eagerness`. It keeps `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ALLOWED_EMAILS`, `MCP_API_TOKEN`, `PUBLIC_BASE_URL`, and `SESSION_SECRET`. The public origin stays `https://fastmcp-rag-timer-frontend-production.up.railway.app`, so the Google callback does not change. The process starts with `python -m mcp_chat` and listens on `PORT`.
+
+## Map
+
+Each answer is a set of fact cards: title, excerpt, and the page or figure image. Cards that include `lat` and `lon` (or a `Souřadnice` line) are drawn on the map as “This answer”.
+
+Context layers come from the public GeoServer WMS at `https://geoserver-production-4d0d.up.railway.app/geoserver/ows`:
+
+- `trails:obce` — municipality polygons
+- `trails:cast_obce` — municipal-part points
+- `trails:locality_links` — stored locality GPS, on by default
+- `trails:layer_objects` — catalog geometries
+
+OpenStreetMap is the base map. GeoServer is not a substitute for the answer points: those coordinates live on the RAG hits.
+
+```text
+uv run pytest
+uv run ruff check src tests
+```
+
+`mcp.config.example.json` shows the same remote server with `${MCP_API_TOKEN}` left for the server process to resolve. The running app reads the environment variables above.

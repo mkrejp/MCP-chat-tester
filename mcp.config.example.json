@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "fastmcp-rag-timer": {
+      "transport": "streamable-http",
+      "url": "https://rag-timer-00001-production.up.railway.app/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${MCP_API_TOKEN}"
+      }
+    }
+  }
+}

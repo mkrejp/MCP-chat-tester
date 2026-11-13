@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCP chat</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <p class="eyebrow">MCP inspection</p>
+      <h1>Knowledge server</h1>
+      <p id="who" class="who"></p>
+      <p id="conn" class="status">Checking connection…</p>
+      <p id="server" class="server"></p>
+      <button id="refresh" type="button">Refresh MCP servers</button>
+      <section>
+        <h2>Tools</h2>
+        <ul id="tools"></ul>
+      </section>
+      <section>
+        <h2>Resources</h2>
+        <ul id="resources"></ul>
+      </section>
+      <section>
+        <h2>Prompts</h2>
+        <ul id="prompts"></ul>
+      </section>
+      <a class="logout" href="/auth/logout">Sign out</a>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Chat</p>
+          <h2>Ask the archive</h2>
+        </div>
+      </header>
+      <div class="workspace">
+        <section class="reading" aria-live="polite">
+          <p id="reading" class="lead">
+            Ask a question. Facts with text, pictures, and GPS show here.
+          </p>
+          <div id="facts" class="facts"></div>
+          <details id="calls" hidden>
+            <summary>Tool calls</summary>
+            <div id="calls-body"></div>
+          </details>
+        </section>
+        <section class="atlas" aria-label="Map">
+          <div id="map"></div>
+          <p id="map-note" class="map-note"></p>
+        </section>
+      </div>
+      <form id="composer">
+        <label class="sr" for="message">Message</label>
+        <textarea
+          id="message"
+          name="message"
+          rows="2"
+          required
+          placeholder="What does the server know about Vršovice secession?"
+        ></textarea>
+        <button type="submit">Send</button>
+      </form>
+    </main>
+    <dialog id="lightbox">
+      <form method="dialog">
+        <button type="submit">Close</button>
+      </form>
+      <img id="lightbox-image" alt="" />
+    </dialog>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
