@@ -103,13 +103,9 @@ def _places_in_text(text: str) -> list[Place]:
 def _place_from_hit(hit: dict[str, Any]) -> Place:
     """Read one JSON search hit, preferring structured lat/lon."""
     content = str(hit.get("content") or hit.get("text") or "").strip()
-    lat = _as_float(hit.get("lat"))
-    lon = _as_float(hit.get("lon"))
-    source = str(hit.get("geo_source") or "")
+    lat, lon, source = _coords_from_hit(hit)
     if not _valid(lat, lon):
         lat, lon, source = _coords_from_text(content)
-    elif not source:
-        source = "original"
     image_id = str(hit.get("page_image_id") or hit.get("image_id") or "").strip()
     kind = str(hit.get("source_type") or hit.get("kind") or "hit")
     return Place(
@@ -124,6 +120,38 @@ def _place_from_hit(hit: dict[str, Any]) -> Place:
         kind=kind,
         url=public_url(hit.get("url") or hit.get("source_url")),
     )
+
+
+def _coords_from_hit(
+    hit: dict[str, Any],
+) -> tuple[float | None, float | None, str]:
+    """Read top-level coordinates, then refined, original, or a GeoJSON point."""
+    lat = _as_float(hit.get("lat"))
+    if lat is None:
+        lat = _as_float(hit.get("latitude"))
+    lon = _as_float(hit.get("lon"))
+    if lon is None:
+        lon = _as_float(hit.get("longitude"))
+    source = str(hit.get("geo_source") or "")
+    if _valid(lat, lon):
+        return lat, lon, source or "original"
+    for key, label in (("geo_refined", "refined"), ("geo_original", "original")):
+        nested = hit.get(key)
+        if not isinstance(nested, dict):
+            continue
+        nested_lat = _as_float(nested.get("lat"))
+        nested_lon = _as_float(nested.get("lon"))
+        if _valid(nested_lat, nested_lon):
+            return nested_lat, nested_lon, label
+    geom = hit.get("geom")
+    if isinstance(geom, dict) and str(geom.get("type") or "") == "Point":
+        coords = geom.get("coordinates")
+        if isinstance(coords, list) and len(coords) >= 2:
+            geom_lon = _as_float(coords[0])
+            geom_lat = _as_float(coords[1])
+            if _valid(geom_lat, geom_lon):
+                return geom_lat, geom_lon, "geom"
+    return None, None, ""
 
 
 def _coords_from_text(text: str) -> tuple[float | None, float | None, str]:

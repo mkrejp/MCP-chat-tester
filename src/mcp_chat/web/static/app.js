@@ -304,20 +304,49 @@ function markerTip(place) {
   return tip;
 }
 
+function spreadPositions(places) {
+  const groups = new Map();
+  for (const place of places) {
+    if (place.lat == null || place.lon == null) continue;
+    const key = `${Number(place.lat).toFixed(3)},${Number(place.lon).toFixed(3)}`;
+    const group = groups.get(key) || [];
+    group.push(place);
+    groups.set(key, group);
+  }
+  const positioned = [];
+  for (const group of groups.values()) {
+    group.forEach((place, index) => {
+      if (group.length === 1) {
+        positioned.push({ place, lat: Number(place.lat), lon: Number(place.lon) });
+        return;
+      }
+      const angle = (2 * Math.PI * index) / group.length;
+      const radius = 0.012;
+      positioned.push({
+        place,
+        lat: Number(place.lat) + radius * Math.cos(angle),
+        lon: Number(place.lon) + radius * Math.sin(angle),
+      });
+    });
+  }
+  return positioned;
+}
+
 function renderMarkers(places) {
   pendingPlaces = places;
   if (!map || !answerLayer) return;
   clearAnswerPoints();
+  map.invalidateSize();
   const points = [];
-  for (const place of places) {
-    if (place.lat == null || place.lon == null) continue;
+  for (const item of spreadPositions(places)) {
+    const place = item.place;
     const icon = L.divIcon({
-      className: "atlas-pin",
+      className: "leaflet-div-icon atlas-pin",
       html: `<span>${badge(place.id)}</span>`,
       iconSize: [32, 32],
       iconAnchor: [16, 16],
     });
-    const marker = L.marker([place.lat, place.lon], {
+    const marker = L.marker([item.lat, item.lon], {
       icon,
       zIndexOffset: 600,
       title: `${badge(place.id)} ${place.title || "Finding"}`,
@@ -337,7 +366,7 @@ function renderMarkers(places) {
     marker.on("click", () => selectPlace(place.id));
     marker.addTo(answerLayer);
     markers.set(place.id, marker);
-    points.push([place.lat, place.lon]);
+    points.push([item.lat, item.lon]);
   }
   if (points.length === 1) {
     map.setView(points[0], 14);

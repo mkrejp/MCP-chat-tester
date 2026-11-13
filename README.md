@@ -34,7 +34,7 @@ The production service is the existing Railway app `fastmcp-rag-timer-frontend` 
 
 ## Map
 
-Each answer is a set of fact cards: title, excerpt, and the page or figure image. Cards that include `lat` and `lon` (or a `Souřadnice` line) are drawn on the map as “This answer”.
+Each answer is a set of fact cards: title, excerpt, and the page or figure image. Cards that include `lat` and `lon` (or a `Souřadnice` line) are drawn on the map as “This answer”. When a hit has no GPS but the question names a municipality stored in GeoServer (`trails:cast_obce` or `trails:obce`), every unlocated note for that single place is pinned on the stored point.
 
 Context layers come from the public GeoServer WMS at `https://geoserver-production-4d0d.up.railway.app/geoserver/ows`:
 

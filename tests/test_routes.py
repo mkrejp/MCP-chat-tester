@@ -98,7 +98,12 @@ def test_signed_in_chat_searches_and_hides_the_token() -> None:
     """A session can search. The token is absent from inspection and the reply."""
     gateway = FakeMcp()
     client = TestClient(
-        create_app(_settings(), mcp=gateway, forced_user="reader@example.com")
+        create_app(
+            _settings(),
+            mcp=gateway,
+            forced_user="reader@example.com",
+            locality_lookup=lambda _name: None,
+        )
     )
     inspection = client.get("/api/inspection")
     assert inspection.status_code == 200

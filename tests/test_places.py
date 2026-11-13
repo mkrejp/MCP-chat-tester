@@ -83,6 +83,32 @@ def test_text_coordinates_and_rejected_ranges() -> None:
     assert places[1].text == "bad"
 
 
+def test_nested_refined_and_geom_coordinates() -> None:
+    """A null top-level lat still uses geo_refined, then a GeoJSON point."""
+    refined = ToolOutcome(
+        name="search_domain_knowledge",
+        arguments={},
+        text=(
+            '[{"content":"Krouna chapel","lat":null,"lon":null,'
+            '"geo_refined":{"lat":49.77,"lon":16.03}}]'
+        ),
+    )
+    geom = ToolOutcome(
+        name="search_domain_knowledge",
+        arguments={},
+        text=(
+            '[{"content":"point","geom":{"type":"Point","coordinates":[16.1,49.8]}}]'
+        ),
+    )
+    places = places_from_outcomes([refined, geom])
+    assert places[0].lat == 49.77
+    assert places[0].lon == 16.03
+    assert places[0].geo_source == "refined"
+    assert places[1].lat == 49.8
+    assert places[1].lon == 16.1
+    assert places[1].geo_source == "geom"
+
+
 def test_map_catalog_lists_geoserver_context_without_secrets() -> None:
     """Context layers point at the public Railway GeoServer."""
     catalog = map_catalog()
