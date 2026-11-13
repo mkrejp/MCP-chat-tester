@@ -61,19 +61,23 @@ class FakeMcp:
         )
 
 
-def _settings() -> Settings:
+def _settings(**overrides: Any) -> Settings:
     """Settings that do not point at the live RAG server."""
-    return Settings(
-        mcp_server_url="https://rag.example/mcp/",
-        mcp_api_token="secret-token",
-        host="127.0.0.1",
-        port=8000,
-        google_client_id="",
-        google_client_secret="",
-        google_allowed_emails=("reader@example.com",),
-        session_secret="test-secret",
-        public_base_url="http://127.0.0.1:8000",
-    )
+    values: dict[str, Any] = {
+        "mcp_server_url": "https://rag.example/mcp/",
+        "mcp_api_token": "secret-token",
+        "host": "127.0.0.1",
+        "port": 8000,
+        "google_client_id": "",
+        "google_client_secret": "",
+        "google_allowed_emails": ("reader@example.com",),
+        "session_secret": "test-secret",
+        "public_base_url": "http://127.0.0.1:8000",
+        "deepl_api_key": "",
+        "deepl_api_url": "",
+    }
+    values.update(overrides)
+    return Settings(**values)
 
 
 def test_health_is_public_and_chat_requires_a_session(
@@ -117,3 +121,65 @@ def test_signed_in_chat_searches_and_hides_the_token() -> None:
     assert image.status_code == 200
     assert image.headers["content-type"].startswith("image/png")
     assert image.content == b"hi"
+
+
+def test_translate_requires_session_and_deepl_key() -> None:
+    """Anonymous callers are blocked; signed-in callers need DeepL configured."""
+    anonymous = TestClient(
+        create_app(_settings(), mcp=FakeMcp()), follow_redirects=False
+    )
+    denied = anonymous.post("/api/translate", json={"target": "cs", "texts": ["Hello"]})
+    assert denied.status_code == 401
+
+    client = TestClient(
+        create_app(_settings(), mcp=FakeMcp(), forced_user="reader@example.com")
+    )
+    missing = client.post("/api/translate", json={"target": "cs", "texts": ["Hello"]})
+    assert missing.status_code == 503
+    assert "DeepL" in missing.json()["detail"]
+
+
+def test_translate_rejects_unsupported_language() -> None:
+    """Only the six UI languages are accepted."""
+    client = TestClient(
+        create_app(
+            _settings(deepl_api_key="test-key"),
+            mcp=FakeMcp(),
+            forced_user="reader@example.com",
+        )
+    )
+    response = client.post("/api/translate", json={"target": "pl", "texts": ["Hello"]})
+    assert response.status_code == 400
+
+
+def test_translate_returns_deepl_batch(monkeypatch: MonkeyPatch) -> None:
+    """A configured key returns translations and a second call can use the cache."""
+    from mcp_chat import translate as translate_mod
+
+    translate_mod.clear_cache()
+    calls = {"n": 0}
+
+    async def fake_translate(
+        texts: list[str],
+        target: str,
+        *,
+        api_key: str,
+        api_url: str = "",
+        client: Any = None,
+    ) -> list[str]:
+        del target, api_key, api_url, client
+        calls["n"] += 1
+        return [f"<{text}>" for text in texts]
+
+    monkeypatch.setattr("mcp_chat.app.translate_texts", fake_translate)
+    client = TestClient(
+        create_app(
+            _settings(deepl_api_key="test-key:fx"),
+            mcp=FakeMcp(),
+            forced_user="reader@example.com",
+        )
+    )
+    first = client.post("/api/translate", json={"target": "de", "texts": ["Hello", ""]})
+    assert first.status_code == 200
+    assert first.json() == {"translations": ["<Hello>", "<>"]}
+    assert calls["n"] == 1

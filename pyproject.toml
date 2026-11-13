@@ -29,7 +29,14 @@ packages = ["src/mcp_chat"]
 [tool.hatch.build.targets.wheel.force-include]
 "src/mcp_chat/web/index.html" = "mcp_chat/web/index.html"
 "src/mcp_chat/web/static/app.js" = "mcp_chat/web/static/app.js"
+"src/mcp_chat/web/static/i18n.js" = "mcp_chat/web/static/i18n.js"
 "src/mcp_chat/web/static/styles.css" = "mcp_chat/web/static/styles.css"
+"src/mcp_chat/web/static/locales/en.json" = "mcp_chat/web/static/locales/en.json"
+"src/mcp_chat/web/static/locales/cs.json" = "mcp_chat/web/static/locales/cs.json"
+"src/mcp_chat/web/static/locales/de.json" = "mcp_chat/web/static/locales/de.json"
+"src/mcp_chat/web/static/locales/fr.json" = "mcp_chat/web/static/locales/fr.json"
+"src/mcp_chat/web/static/locales/it.json" = "mcp_chat/web/static/locales/it.json"
+"src/mcp_chat/web/static/locales/es.json" = "mcp_chat/web/static/locales/es.json"
 
 [tool.uv]
 package = true

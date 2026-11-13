@@ -13,8 +13,12 @@ Credential names match [fastmcp-rag-timer-frontend](https://github.com/mkrejp/fa
 | `MCP_SERVER_URL` | Default `https://rag-timer-00001-production.up.railway.app/mcp/` |
 | `PUBLIC_BASE_URL` | Origin used for the Google callback |
 | `SESSION_SECRET` | Cookie signing key for this app |
+| `DEEPL_API_KEY` | DeepL key for translating dynamic page content (reply, facts, MCP descriptions) |
+| `DEEPL_API_URL` | Optional DeepL host override (free keys ending in `:fx` default to `api-free.deepl.com`) |
 
 `/health`, `/auth/*`, and `/static/*` are public. `/` and `/api/*` require a Google session. The token is not included in HTML, JSON, or image responses.
+
+The chat page has a language selector (English, Czech, German, French, Italian, Spanish). Fixed chrome uses locale files under `/static/locales/`. Dynamic strings are translated through `POST /api/translate` with DeepL. The choice is stored in `localStorage` as `mcpChatLang`. Without `DEEPL_API_KEY`, the chrome still switches language and dynamic text stays in the original language.
 
 The Google client must allow `{PUBLIC_BASE_URL}/auth/callback`. For this machine that is `http://127.0.0.1:8000/auth/callback`.
 
@@ -30,7 +34,7 @@ uv run python -m mcp_chat
 
 Open `http://127.0.0.1:8000`. Railway health checks should use `GET /health`.
 
-The production service is the existing Railway app `fastmcp-rag-timer-frontend` in project `perfect-eagerness`. It keeps `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ALLOWED_EMAILS`, `MCP_API_TOKEN`, `PUBLIC_BASE_URL`, and `SESSION_SECRET`. The public origin stays `https://fastmcp-rag-timer-frontend-production.up.railway.app`, so the Google callback does not change. The process starts with `python -m mcp_chat` and listens on `PORT`.
+The production service is the existing Railway app `fastmcp-rag-timer-frontend` in project `perfect-eagerness`. It keeps `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ALLOWED_EMAILS`, `MCP_API_TOKEN`, `PUBLIC_BASE_URL`, and `SESSION_SECRET`. Add `DEEPL_API_KEY` (and optionally `DEEPL_API_URL`) for page translation. The public origin stays `https://fastmcp-rag-timer-frontend-production.up.railway.app`, so the Google callback does not change. The process starts with `python -m mcp_chat` and listens on `PORT`.
 
 ## Map
 

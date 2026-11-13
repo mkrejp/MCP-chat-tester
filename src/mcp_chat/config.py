@@ -27,6 +27,8 @@ class Settings:
     google_allowed_emails: tuple[str, ...]
     session_secret: str
     public_base_url: str
+    deepl_api_key: str
+    deepl_api_url: str
 
     @property
     def token_configured(self) -> bool:
@@ -37,6 +39,11 @@ class Settings:
     def google_configured(self) -> bool:
         """Return whether both Google OAuth client values are present."""
         return bool(self.google_client_id and self.google_client_secret)
+
+    @property
+    def deepl_configured(self) -> bool:
+        """Return whether a DeepL API key is present."""
+        return bool(self.deepl_api_key)
 
 
 def load_settings(env_file: Path | None = None) -> Settings:
@@ -66,6 +73,8 @@ def load_settings(env_file: Path | None = None) -> Settings:
             "PUBLIC_BASE_URL", "http://127.0.0.1:8000"
         ).strip()
         or "http://127.0.0.1:8000",
+        deepl_api_key=os.environ.get("DEEPL_API_KEY", "").strip(),
+        deepl_api_url=os.environ.get("DEEPL_API_URL", "").strip(),
     )
 
 

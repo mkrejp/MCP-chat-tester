@@ -24,6 +24,13 @@ from mcp_chat.mcp_client import (
     ToolOutcome,
 )
 from mcp_chat.places import places_from_outcomes
+from mcp_chat.translate import (
+    MAX_BATCH,
+    MAX_CHARS,
+    SUPPORTED,
+    TranslateError,
+    translate_texts,
+)
 
 _WEB = Path(__file__).resolve().parent / "web"
 _STATIC = _WEB / "static"
@@ -34,6 +41,13 @@ class ChatRequest(BaseModel):
     """One user turn."""
 
     message: str = Field(min_length=1, max_length=4000)
+
+
+class TranslateRequest(BaseModel):
+    """Batch of strings to render in one UI language."""
+
+    target: str = Field(min_length=2, max_length=8)
+    texts: list[str] = Field(default_factory=list, max_length=MAX_BATCH)
 
 
 def create_app(
@@ -123,6 +137,42 @@ def create_app(
                 {"image_id": image_id} for image_id in collect_image_ids(outcomes)
             ],
         }
+
+    @app.post("/api/translate")
+    async def translate(body: TranslateRequest) -> dict[str, list[str]]:
+        """Translate dynamic page strings into the selected UI language."""
+        target = body.target.strip().lower()
+        if target not in SUPPORTED:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported language: {body.target}",
+            )
+        if len(body.texts) > MAX_BATCH:
+            raise HTTPException(
+                status_code=400,
+                detail=f"At most {MAX_BATCH} texts per request.",
+            )
+        for text in body.texts:
+            if len(text) > MAX_CHARS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Each text may be at most {MAX_CHARS} characters.",
+                )
+        if not resolved.deepl_configured:
+            raise HTTPException(
+                status_code=503,
+                detail="DeepL API key is not configured.",
+            )
+        try:
+            translations = await translate_texts(
+                body.texts,
+                target,
+                api_key=resolved.deepl_api_key,
+                api_url=resolved.deepl_api_url,
+            )
+        except TranslateError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {"translations": translations}
 
     @app.get("/api/images")
     async def image(image_id: str) -> Response:
