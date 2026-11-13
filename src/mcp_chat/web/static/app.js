@@ -20,6 +20,7 @@ let answerLayer;
 let activeId = "";
 let searchToken = 0;
 let pendingPlaces = [];
+let pendingFocus = null;
 let hasSearch = false;
 
 function list(target, items, empty) {
@@ -191,7 +192,7 @@ async function loadMap() {
   const response = await fetch("/api/map/layers");
   if (!response.ok) return;
   setupMap(await response.json());
-  if (hasSearch) renderMarkers(pendingPlaces);
+  if (hasSearch) renderMarkers(pendingPlaces, pendingFocus);
 }
 
 function paintActive() {
@@ -332,8 +333,9 @@ function spreadPositions(places) {
   return positioned;
 }
 
-function renderMarkers(places) {
+function renderMarkers(places, focus) {
   pendingPlaces = places;
+  pendingFocus = focus || null;
   if (!map || !answerLayer) return;
   clearAnswerPoints();
   map.invalidateSize();
@@ -368,7 +370,9 @@ function renderMarkers(places) {
     markers.set(place.id, marker);
     points.push([item.lat, item.lon]);
   }
-  if (points.length === 1) {
+  if (focus && focus.lat != null && focus.lon != null) {
+    map.setView([focus.lat, focus.lon], 13);
+  } else if (points.length === 1) {
     map.setView(points[0], 14);
   } else if (points.length > 1) {
     map.fitBounds(points, { padding: [36, 36], maxZoom: 14 });
@@ -404,6 +408,7 @@ form.addEventListener("submit", async (event) => {
   facts.replaceChildren();
   clearAnswerPoints();
   pendingPlaces = [];
+  pendingFocus = null;
   mapNote.textContent = "Replacing the numbered pins for this search…";
   const response = await fetch("/api/chat", {
     method: "POST",
@@ -421,7 +426,7 @@ form.addEventListener("submit", async (event) => {
   setReading(body.reply || "");
   renderCalls(body.calls);
   renderFacts(body.places || []);
-  renderMarkers(body.places || []);
+  renderMarkers(body.places || [], body.focus || null);
 });
 
 document.querySelector("#refresh").addEventListener("click", () => {

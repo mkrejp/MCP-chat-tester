@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from mcp_chat.localities import Locality
 from mcp_chat.mcp_client import ToolOutcome
 from mcp_chat.present import readable_text, readable_title
 
@@ -65,11 +66,17 @@ class PlannedCall:
     arguments: dict[str, Any]
 
 
-def plan_calls(message: str, available: set[str]) -> list[PlannedCall]:
+def plan_calls(
+    message: str,
+    available: set[str],
+    *,
+    place: Locality | None = None,
+) -> list[PlannedCall]:
     """Pick read-only RAG tools for ``message``.
 
-    Write tools such as ``ingest_text`` are never selected, even when the
-    server advertises them.
+    When ``place`` is set, knowledge search uses a higher limit, an optional
+    ``obec_id`` filter is added, and ``list_links`` is requested. Write tools
+    such as ``ingest_text`` are never selected.
     """
     text = " ".join(message.split())
     lowered = text.lower()
@@ -83,12 +90,33 @@ def plan_calls(message: str, available: set[str]) -> list[PlannedCall]:
                 "search_domain_knowledge",
                 {
                     "query": text,
-                    "limit": 5,
+                    "limit": 12 if place is not None else 5,
                     "format": "json",
                     "include_figures": True,
                 },
             )
         )
+        if place is not None and place.obec_id:
+            filtered: dict[str, Any] = {
+                "query": text,
+                "limit": 12,
+                "format": "json",
+                "include_figures": True,
+                "obec_id": place.obec_id,
+            }
+            if place.cast_obce_kod:
+                filtered["cast_obce"] = place.cast_obce_kod
+            calls.append(PlannedCall("search_domain_knowledge", filtered))
+    if place is not None and place.obec_id and "list_links" in allowed:
+        link_args: dict[str, Any] = {
+            "obec_id": place.obec_id,
+            "limit": 50,
+            "offset": 0,
+        }
+        if place.cast_obce_kod:
+            link_args["cast_obce"] = place.cast_obce_kod
+            link_args["locality_level"] = "cast_obce"
+        calls.append(PlannedCall("list_links", link_args))
     if (
         any(word in lowered for word in _VISUAL_WORDS)
         and "search_images" in allowed
