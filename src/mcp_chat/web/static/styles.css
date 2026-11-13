@@ -91,6 +91,31 @@ main {
   gap: 0.6rem;
 }
 
+.topbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.lang-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-family: "Segoe UI", sans-serif;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.lang-picker select {
+  font: inherit;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: white;
+  padding: 0.35rem 0.55rem;
+  min-width: 9rem;
+}
+
 .workspace {
   flex: 1;
   min-height: 0;

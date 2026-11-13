@@ -12,32 +12,45 @@
   </head>
   <body>
     <aside class="sidebar">
-      <p class="eyebrow">MCP inspection</p>
-      <h1>Knowledge server</h1>
+      <p class="eyebrow" data-i18n="sidebar.eyebrow">MCP inspection</p>
+      <h1 data-i18n="sidebar.title">Knowledge server</h1>
       <p id="who" class="who"></p>
       <p id="conn" class="status">Checking connection…</p>
       <p id="server" class="server"></p>
-      <button id="refresh" type="button">Refresh MCP servers</button>
+      <button id="refresh" type="button" data-i18n="sidebar.refresh">
+        Refresh MCP servers
+      </button>
       <section>
-        <h2>Tools</h2>
+        <h2 data-i18n="sidebar.tools">Tools</h2>
         <ul id="tools"></ul>
       </section>
       <section>
-        <h2>Resources</h2>
+        <h2 data-i18n="sidebar.resources">Resources</h2>
         <ul id="resources"></ul>
       </section>
       <section>
-        <h2>Prompts</h2>
+        <h2 data-i18n="sidebar.prompts">Prompts</h2>
         <ul id="prompts"></ul>
       </section>
-      <a class="logout" href="/auth/logout">Sign out</a>
+      <a class="logout" href="/auth/logout" data-i18n="sidebar.logout">Sign out</a>
     </aside>
     <main>
       <header class="topbar">
         <div>
-          <p class="eyebrow">Chat</p>
-          <h2>Ask the archive</h2>
+          <p class="eyebrow" data-i18n="topbar.eyebrow">Chat</p>
+          <h2 data-i18n="topbar.title">Ask the archive</h2>
         </div>
+        <label class="lang-picker">
+          <span data-i18n="lang.label">Language</span>
+          <select id="lang" name="lang">
+            <option value="en">English</option>
+            <option value="cs">Čeština</option>
+            <option value="de">Deutsch</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="es">Español</option>
+          </select>
+        </label>
       </header>
       <div class="workspace">
         <section class="reading" aria-live="polite">
@@ -46,34 +59,36 @@
           </p>
           <div id="facts" class="facts"></div>
           <details id="calls" hidden>
-            <summary>Tool calls</summary>
+            <summary data-i18n="calls.summary">Tool calls</summary>
             <div id="calls-body"></div>
           </details>
         </section>
-        <section class="atlas" aria-label="Map">
+        <section class="atlas" data-i18n-aria="map.aria" aria-label="Map">
           <div id="map"></div>
           <p id="map-note" class="map-note"></p>
         </section>
       </div>
       <form id="composer">
-        <label class="sr" for="message">Message</label>
+        <label class="sr" for="message" data-i18n="composer.label">Message</label>
         <textarea
           id="message"
           name="message"
           rows="2"
           required
+          data-i18n-placeholder="composer.placeholder"
           placeholder="What does the server know about Vršovice secession?"
         ></textarea>
-        <button type="submit">Send</button>
+        <button type="submit" data-i18n="composer.send">Send</button>
       </form>
     </main>
     <dialog id="lightbox">
       <form method="dialog">
-        <button type="submit">Close</button>
+        <button type="submit" data-i18n="lightbox.close">Close</button>
       </form>
       <img id="lightbox-image" alt="" />
     </dialog>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/i18n.js"></script>
     <script src="/static/app.js"></script>
   </body>
 </html>
