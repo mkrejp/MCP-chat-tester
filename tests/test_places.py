@@ -62,6 +62,21 @@ def test_text_coordinates_and_rejected_ranges() -> None:
     assert places[1].text == "bad"
 
 
+def test_hit_url_is_not_kept_as_browser_image_id() -> None:
+    """Auth-gated RAG URLs must not become img src values."""
+    text = (
+        '[{"doc_id":"doc-9","content":"see '
+        'https://rag.example/images/doc-9/page:doc-9:3",'
+        '"page_image_id":"https://rag.example/images/doc-9/page:doc-9:3"}]'
+    )
+    places = places_from_outcomes(
+        [ToolOutcome(name="search_domain_knowledge", arguments={}, text=text)]
+    )
+    assert places[0].image_id == ""
+    assert "rag.example/images/" not in places[0].text
+    assert "/api/images?image_id=" in places[0].text
+
+
 def test_map_catalog_lists_geoserver_context_without_secrets() -> None:
     """Context layers point at the public Railway GeoServer."""
     catalog = map_catalog()

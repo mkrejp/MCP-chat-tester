@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from mcp_chat.image_proxy import scrub_rag_image_urls
 from mcp_chat.mcp_client import ToolOutcome
 
 _LAT_LON = re.compile(
@@ -77,7 +78,7 @@ def _places_in_text(text: str) -> list[Place]:
     hits = _parse_hits(text)
     if hits is not None:
         return [_place_from_hit(hit) for hit in hits if _has_body(hit)]
-    stripped = text.strip()
+    stripped = scrub_rag_image_urls(text.strip())
     if not stripped:
         return []
     lat, lon, source = _coords_from_text(stripped)
@@ -98,7 +99,9 @@ def _places_in_text(text: str) -> list[Place]:
 
 def _place_from_hit(hit: dict[str, Any]) -> Place:
     """Read one JSON search hit, preferring structured lat/lon."""
-    content = str(hit.get("content") or hit.get("text") or "").strip()
+    content = scrub_rag_image_urls(
+        str(hit.get("content") or hit.get("text") or "").strip()
+    )
     lat = _as_float(hit.get("lat"))
     lon = _as_float(hit.get("lon"))
     source = str(hit.get("geo_source") or "")
@@ -107,6 +110,11 @@ def _place_from_hit(hit: dict[str, Any]) -> Place:
     elif not source:
         source = "original"
     image_id = str(hit.get("page_image_id") or hit.get("image_id") or "").strip()
+    # Never treat auth-gated RAG HTTP URLs as image ids for the browser.
+    if image_id.startswith("http://") or image_id.startswith("https://"):
+        image_id = ""
+    if image_id.startswith("/images/"):
+        image_id = image_id.rstrip("/").rsplit("/", 1)[-1]
     title = str(
         hit.get("title")
         or hit.get("caption")

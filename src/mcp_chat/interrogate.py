@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from mcp_chat.image_proxy import scrub_rag_image_urls
 from mcp_chat.mcp_client import ToolOutcome
 
 READ_ONLY_TOOLS = frozenset(
@@ -128,14 +129,14 @@ def summarize_tool_text(text: str) -> str:
     """Prefer structured hits. Fall back to trimmed plain text."""
     hits = _parse_hits(text)
     if hits is None:
-        body = text.strip() or "The tool returned no text."
+        body = scrub_rag_image_urls(text.strip() or "The tool returned no text.")
         return body[:4000]
     if not hits:
         return "The tool returned no matching hits."
     lines: list[str] = []
     for hit in hits[:5]:
         content = _plain(str(hit.get("content") or hit.get("text") or "")).strip()
-        content = content[:500]
+        content = scrub_rag_image_urls(content[:500])
         title = _plain(
             str(hit.get("title") or hit.get("doc_id") or hit.get("source") or "hit")
         )

@@ -13,6 +13,12 @@ from pydantic import BaseModel, Field
 
 from mcp_chat.auth import install_auth
 from mcp_chat.config import Settings, load_settings
+from mcp_chat.image_proxy import (
+    ImageFetchError,
+    fetch_image_bytes,
+    resolve_image_http_url,
+    scrub_rag_image_urls,
+)
 from mcp_chat.interrogate import collect_image_ids, plan_calls, render_reply
 from mcp_chat.map_layers import map_catalog
 from mcp_chat.mcp_client import (
@@ -125,7 +131,7 @@ def create_app(
                     "tool": outcome.name,
                     "arguments": outcome.arguments,
                     "ok": not outcome.is_error,
-                    "preview": outcome.text[:1200],
+                    "preview": scrub_rag_image_urls(outcome.text[:1200]),
                 }
             )
         places = [place.to_dict() for place in places_from_outcomes(outcomes)]
@@ -186,17 +192,19 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except McpCallError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
-        if not outcome.images:
-            raise HTTPException(
-                status_code=404,
-                detail=outcome.text or "Image not found.",
+        if outcome.images:
+            picture = outcome.images[0]
+            raw = _decode_image(picture.data_base64)
+            if len(raw) > _MAX_IMAGE_BYTES:
+                raise HTTPException(status_code=413, detail="Image is too large.")
+            return Response(
+                content=raw,
+                media_type=picture.mime_type or "application/octet-stream",
             )
-        picture = outcome.images[0]
-        raw = _decode_image(picture.data_base64)
-        if len(raw) > _MAX_IMAGE_BYTES:
-            raise HTTPException(status_code=413, detail="Image is too large.")
-        return Response(
-            content=raw, media_type=picture.mime_type or "application/octet-stream"
+        return await _image_via_authenticated_http(
+            settings=resolved,
+            image_id=cleaned,
+            tool_text=outcome.text,
         )
 
     return app
@@ -232,6 +240,32 @@ def _decode_image(data_base64: str) -> bytes:
         raise HTTPException(
             status_code=502, detail="Image payload was not valid."
         ) from exc
+
+
+async def _image_via_authenticated_http(
+    *,
+    settings: Settings,
+    image_id: str,
+    tool_text: str,
+) -> Response:
+    """Fetch an oversized or URL-only image using the process bearer token."""
+    url = resolve_image_http_url(
+        mcp_server_url=settings.mcp_server_url,
+        image_id=image_id,
+        tool_text=tool_text,
+    )
+    if not url:
+        raise HTTPException(status_code=404, detail="Image not found.")
+    if not settings.token_configured:
+        raise HTTPException(status_code=503, detail="MCP_API_TOKEN is not set.")
+    try:
+        raw, media_type = await fetch_image_bytes(url, token=settings.mcp_api_token)
+    except ImageFetchError as exc:
+        status = 404 if exc.status_code == 404 else 502
+        if exc.status_code == 413:
+            status = 413
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return Response(content=raw, media_type=media_type)
 
 
 app = create_app()
